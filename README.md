@@ -1,22 +1,34 @@
-# EDC16U34 Read/Write Tool
+\# EDC16U34 Read/Write \& Security Tool
 
-Experimental CAN read/write tooling for Bosch EDC16U34.
 
-Contents:
-- bench_test.py: safe Phase 1 bench validation only (no 0x31/0x32/0x33).
-- unlock_ecu_can.py
-- full_flash_writer.py
-- receive_flash_stream.py
-- build_033_payload.py
-- compute_key.py
-- bdm_extract_key.py
-- replay_capture.py
-- edc16_fix_checksum.py
 
-Limits:
-- 0x33 finish requires a valid RSA-1024 signature. The private key was not found in the external 2MB flash.
-- CAN read path is not validated on hardware.
-- Bench-test only. Do not use on a daily-driven vehicle.
+\## The 0x33 RSA Bypass (OBD Unlock)
 
-Safe first test: python bench_test.py --port COMx
+The Bosch EDC16U34 uses an RSA-1024 signature check on the `0x33` diagnostic service (Finish Flash). 
+
+Through reverse engineering the bootloader, the signature verification function was located at `0x00023FE4`.
+
+
+
+Instead of extracting the private key, we can patch the bootloader to force a success return.
+
+The function `FUN\_00023fe4` checks the signature and outputs `0x61af3c8e` to signal a valid signature. By overwriting the beginning of this function with hardcoded assembly, we force it to always return success.
+
+
+
+\*\*The Patch (at `0x23FE4`):\*\*
+
+```assembly
+
+li r3, 10            ; Set length/status to 10
+
+stw r3, 0(r9)        ; Store to param\_7
+
+lis r3, 0x61AF
+
+ori r3, r3, 0x3C8E   ; Load success token 0x61af3c8e
+
+stw r3, 0(r10)       ; Store to param\_8
+
+blr                  ; Return
 
